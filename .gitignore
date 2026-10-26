@@ -8,5 +8,9 @@ doc/烟草打顶机器执行机构设计.pdf
 doc/topping_and_sucker_control_id160_2019.pdf
 prd/烟草智能打顶机器人PRD_v0.1.html
 .trae-html-share-packages/prd/烟草智能打顶机器人PRD_v0.2.html.zip
-simulation/delta_arm/Kinematics/__pycache__/workspace_fk.cpython-313.pyc
-workspace_fk.html
+simulation/delta_arm/Kinematics/__pycache__/
+simulation/delta_arm/Kinematics/output/
+doc/path_algorithm_solution/基于 PH 曲线的Delta机器人轨迹规划方法.pdf
+doc/vision_solution/fpls-17-1930225.pdf
+resources/model/方案2操作视频.mp4
+.trae-html-share-packages/simulation/delta_arm/Kinematics/workspace_fk.html.zip
