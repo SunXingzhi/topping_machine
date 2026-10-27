@@ -28,12 +28,12 @@ MIN_THETA = -np.pi / 2.0  # 主动臂最低 -90°
 
 # ---- 关节配置：平行四边形从动臂（每腿 2 杆）----
 # 臂端关节类型："ball" = 球头铰链（锥角约束）；"ujoint" = 十字万向节（双轴摆角约束）
-ARM_JOINT = "ball"
+ARM_JOINT = "ujoint"
 # 球铰允许的锥角：从动臂相对球窝轴的最大偏摆角（ARM_JOINT="ball" 时生效）
 MAX_BALL_CONE = np.deg2rad(40.0)
 # 万向节单方向摆角上限（ARM_JOINT="ujoint" 时生效）；面内/面外相互独立
-UJ_ALPHA_MAX = np.deg2rad(110.0)
-UJ_BETA_MAX = np.deg2rad(90.0)
+UJ_ALPHA_MAX = np.deg2rad(160.0)
+UJ_BETA_MAX = np.deg2rad(160.0)
 # 球窝轴的安装偏置角：按"主动臂下垂"位姿的从动臂方向确定，
 # 使锥角围绕行程中心对称展开（= asin((R-r)/l)，本例为 30°）
 MOUNT_ANGLE = np.arcsin(np.clip((R - r) / l, -1.0, 1.0))
@@ -48,14 +48,57 @@ U_DIR = np.stack([UX, UY, np.zeros(3)], axis=-1)  # (3,3) 径向
 T_DIR = np.stack([-UY, UX, np.zeros(3)], axis=-1)  # (3,3) 切向，叉口间距沿此方向
 U_OFFSET = r * U_DIR  # 动平台铰点相对中心偏移 (3,3)
 
-# 平台端球窝轴：在方位角平面内，相对竖直向外倾斜 MOUNT_ANGLE
-BALL_SOCKET = np.sin(MOUNT_ANGLE) * U_DIR + np.cos(MOUNT_ANGLE) * np.array(
+# 平台端球窝轴：安装面与动平台平面成 135°，球窝轴垂直于安装面，
+# 因此相对竖直方向向外倾斜 135°-90° = 45°
+SOCKET_TILT = np.deg2rad(45.0)
+BALL_SOCKET = np.sin(SOCKET_TILT) * U_DIR + np.cos(SOCKET_TILT) * np.array(
     [0.0, 0.0, 1.0]
 )
 
 # 6 根从动臂的编号：0/1/2 = 腿 0/1/2 的第一根，3/4/5 = 腿 0/1/2 的第二根
 # 同腿两根杆间距恒为 FORK_WIDTH，仍需按线段距离校核（杆倾斜时垂直间距会缩小）
 ROD_PAIRS = [(i, j) for i in range(6) for j in range(i + 1, 6)]
+
+# ==========================================
+# 1b. 方案预设（本脚本与 compare_schemes.py 共用，保证参数同源）
+# ==========================================
+'''默认方案为    "uj160": dict(
+        label="万向节 160° + 球铰 40°", joint="ujoint", cone=40.0, alpha=160.0,
+        color="#16A085",
+    ),
+'''
+
+SCHEMES = {
+    # "ball40": dict(
+    #     label="全球铰 40°", joint="ball", cone=40.0, alpha=None, color="#8E44AD"
+    # ),
+    # "ball45": dict(
+    #     label="全球铰 45°", joint="ball", cone=45.0, alpha=None, color="#2E86DE"
+    # ),
+    # "uj110": dict(
+    #     label="万向节 110° + 球铰 45°", joint="ujoint", cone=45.0, alpha=110.0,
+    #     color="#E67E22",
+    # ),
+    "uj160": dict(
+        label="万向节 160° + 球铰 40°", joint="ujoint", cone=40.0, alpha=160.0,
+        color="#16A085",
+    ),
+}
+
+OUTPUT_TAG = "ball"  # 输出文件名标签，由 apply_scheme() 更新
+
+
+def apply_scheme(key):
+    """设置全局方案预设参数, 便于compare_schemes对比工作控件"""
+    global ARM_JOINT, MAX_BALL_CONE, UJ_ALPHA_MAX, UJ_BETA_MAX, OUTPUT_TAG
+    s = SCHEMES[key]
+    ARM_JOINT = s["joint"]
+    MAX_BALL_CONE = np.deg2rad(s["cone"])
+    UJ_BETA_MAX = np.deg2rad(90.0)
+    if s["alpha"] is not None:
+        UJ_ALPHA_MAX = np.deg2rad(s["alpha"])
+    OUTPUT_TAG = key
+    return s
 
 
 # ==========================================
@@ -450,16 +493,17 @@ def report(thetas, P):
             s_arm = _arm_socket(th_arr)[0]
             arm_cone = np.degrees(np.arccos(np.clip(np.sum(b_hat * s_arm), -1, 1)))
             print("  %-12s %8.1f %10.1f %11.1f" % (name, P_fk[2], arm_cone, plat_cone))
+        # 十字关节
         else:
             br, bt, bz = _local_components(b_hat)
             alpha = np.degrees(
                 np.abs(np.remainder(np.arctan2(bz, br) - th + np.pi, 2 * np.pi) - np.pi)
             )
             beta = np.degrees(np.abs(np.arctan2(bt, np.hypot(br, bz))))
-            print(
-                "  %-12s %8.1f %10.1f %10.1f %11.1f"
-                % (name, P_fk[2], alpha, beta, plat_cone)
-            )
+            # print(
+            #     "  %-12s %8.1f %10.1f %10.1f %11.1f"
+            #     % (name, P_fk[2], alpha, beta, plat_cone)
+            # )
 
 
 def plot(thetas, P):
@@ -517,7 +561,7 @@ def plot(thetas, P):
 
     out_dir = Path(__file__).resolve().parent / "output"
     out_dir.mkdir(exist_ok=True)
-    out = out_dir / ("workspace_%s.html" % ARM_JOINT)
+    out = out_dir / ("workspace_%s.html" % OUTPUT_TAG)
     fig.write_html(str(out), include_plotlyjs="cdn")
     return str(out)
 
@@ -525,7 +569,11 @@ def plot(thetas, P):
 if __name__ == "__main__":
     import sys
 
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 121
+    n = int(sys.argv[1]) if len(sys.argv) > 1 else 101
+    scheme_key = sys.argv[2] if len(sys.argv) > 2 else "uj160"
+    scheme = apply_scheme(scheme_key)
+    print("方案：%s（%s）" % (scheme["label"], scheme_key))
+
     thetas, P, _, counts, total = build_workspace(n=n)
     print("\n--- 各约束单独通过点数（采样 n=%d，共 %d 个关节组合）---" % (n, total))
     for name, c in counts.items():
