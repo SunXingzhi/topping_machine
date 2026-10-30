@@ -1,0 +1,50 @@
+# Build output
+build/
+cmake-build-*/
+out/
+*.elf
+*.hex
+*.bin
+*.map
+*.obj
+*.o
+*.a
+*.lib
+*.d
+*.su
+*.lst
+*.axf
+*.s19
+*.exe
+*.pdb
+*.ilk
+*.exp
+
+# CMake / IDE
+CMakeUserPresets.json
+.idea/
+.vscode/
+.vs/
+.clangd/
+.cache/
+compile_commands.json
+
+# Test / debug output
+Testing/
+*.gcda
+*.gcno
+*.gcov
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local vendor reference material
+电机参考资料/
+电机参考资料.7z
+
+# Python host test cache
+__pycache__/
+*.pyc

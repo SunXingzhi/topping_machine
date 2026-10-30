@@ -23,7 +23,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "motor.h"
+#ifdef MOTOR_TEST_ENABLE
+#include "motor_validation_test.h"
+#endif
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -89,7 +92,14 @@ int main(void)
   MX_GPIO_Init();
   MX_CAN_Init();
   /* USER CODE BEGIN 2 */
+  if (Motor_Init() != MOTOR_OK)
+  {
+    Error_Handler();
+  }
 
+#ifdef MOTOR_TEST_ENABLE
+  MotorTest_RunValidation();
+#endif
   /* USER CODE END 2 */
 
   /* Infinite loop */

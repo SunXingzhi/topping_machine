@@ -23,6 +23,13 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
+        },
+        {
+            "name": "Test",
+            "inherits": "Debug",
+            "cacheVariables": {
+                "MOTOR_BUILD_TESTS": "ON"
+            }
         }
     ],
     "buildPresets": [
@@ -33,6 +40,10 @@
         {
             "name": "Release",
             "configurePreset": "Release"
+        },
+        {
+            "name": "Test",
+            "configurePreset": "Test"
         }
     ]
 }

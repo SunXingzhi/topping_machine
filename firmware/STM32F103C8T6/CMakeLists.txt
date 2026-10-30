@@ -28,6 +28,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
+option(MOTOR_BUILD_TESTS "Build on-target PD42S1 motor validation test" OFF)
+
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
 
@@ -45,6 +47,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src/motor.c
 )
 
 # Add include paths
@@ -57,6 +60,18 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
 )
 
+if(MOTOR_BUILD_TESTS)
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/embedded/motor_validation_test.c
+    )
+    target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/embedded
+    )
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+        MOTOR_TEST_ENABLE=1
+    )
+endif()
+
 # Remove wrong libob.a library dependency when using cpp files
 list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 
@@ -65,4 +80,16 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
 
     # Add user defined libraries
+)
+
+# Generate HEX/BIN for flashing tools in addition to the ELF.
+add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_OBJCOPY} -O ihex $<TARGET_FILE:${CMAKE_PROJECT_NAME}>
+            ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.hex
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${CMAKE_PROJECT_NAME}>
+            ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.bin
+    BYPRODUCTS
+            ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.hex
+            ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.bin
+    COMMENT "Generating HEX and BIN"
 )
