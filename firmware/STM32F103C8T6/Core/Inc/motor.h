@@ -117,7 +117,8 @@ typedef enum
     MOTOR_STATE_RUNNING = 2,      /**< 正在运行 */
     MOTOR_STATE_OVERLOAD = 3,     /**< 过载 */
     MOTOR_STATE_STALLED = 4,      /**< 堵转 */
-    MOTOR_STATE_UNDERVOLTAGE = 5  /**< 欠压 */
+    MOTOR_STATE_UNDERVOLTAGE = 5, /**< 欠压 */
+    MOTOR_STATE_BRAKE = 8         /**< 刹车（实测返回 0x08，手册 0x2C 表未列出） */
 } motor_run_state_t;
 
 /*==============================================================================
@@ -302,6 +303,18 @@ motor_status_t Motor_SetSpeed(motor_id_t id, int32_t rpm, uint8_t accel);
 motor_status_t Motor_Stop(motor_id_t id);
 
 /**
+ * @brief 清除驱动器状态（堵转、刹车、失能）。
+ *
+ * 对应驱动器 0xFB 指令。Motor_Stop() / Motor_StopAll() 使用 0xFC
+ * 进入刹车状态后，必须调用本函数清除；否则刹车状态可能锁存，
+ * 后续直接使能/给速度时电机不转、发出响动，并可能持续发热。
+ *
+ * @param[in] id 电机编号。
+ * @return MOTOR_OK 成功；其他错误见 motor_status_t。
+ */
+motor_status_t Motor_ClearState(motor_id_t id);
+
+/**
  * @brief 广播立即停止所有电机。
  *
  * 使用广播地址 0 发送 0xFC。所有驱动器执行但不应答。
@@ -343,7 +356,8 @@ motor_status_t Motor_ReadSpeed(motor_id_t id, int16_t *rpm);
 /**
  * @brief 读取运行状态。
  *
- * 对应驱动器 0x2C 指令。
+ * 对应驱动器 0x2C 指令。手册列出的状态为 0~5；
+ * 实测 0xFC 刹车后返回 0x08，本驱动将其表示为 MOTOR_STATE_BRAKE。
  *
  * @param[in]  id    电机编号。
  * @param[out] state 状态输出，不能为 NULL。

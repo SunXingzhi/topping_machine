@@ -46,6 +46,7 @@
 #define MOTOR_FUNC_ABS_MODE         (0xF2U)
 #define MOTOR_FUNC_REL_MODE         (0xF3U)
 #define MOTOR_FUNC_STOP             (0xFCU)
+#define MOTOR_FUNC_CLEAR_STATE      (0xFBU)
 #define MOTOR_FUNC_ZERO             (0xF8U)
 
 /* 指令数据长度 */
@@ -1147,6 +1148,11 @@ motor_status_t Motor_Stop(motor_id_t id)
     return motor_simple_command(id, MOTOR_FUNC_STOP, NULL, 0U, true);
 }
 
+motor_status_t Motor_ClearState(motor_id_t id)
+{
+    return motor_simple_command(id, MOTOR_FUNC_CLEAR_STATE, NULL, 0U, true);
+}
+
 motor_status_t Motor_StopAll(void)
 {
     motor_status_t result;
@@ -1260,7 +1266,8 @@ motor_status_t Motor_ReadState(motor_id_t id, motor_run_state_t *state)
         return result;
     }
 
-    if ((len != MOTOR_RESP_STATE_LEN) || (resp[4] > 5U))
+    if ((len != MOTOR_RESP_STATE_LEN) ||
+        ((resp[4] > 5U) && (resp[4] != (uint8_t)MOTOR_STATE_BRAKE)))
     {
         return MOTOR_ERR_FRAME;
     }
