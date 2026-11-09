@@ -8,17 +8,20 @@ Delta 机械臂正运动学 + 约束工作空间 / Z 轴行程分析
      （正扫不依赖逆解分支选择，可规避 pose_viewer.py 中 branch=-1 取到"肘内"解的问题）
   3) 输出：全局 Z 行程、不同 XY 半径下的 Z 可用区间、不同 Z 高度下的最大可达半径
 
-几何参数与 pose_viewer.py 保持一致，单位 mm。
+几何参数单位 mm。平台端球铰为 SQZ6-RS：
+  - 样本 a° = 15°，即单侧半锥角 Γ_plat = 15°，总摆角 30°
+  - 球心相对底部安装点沿球窝轴偏移 L1 = 28 mm
+  - 因此动平台球心 A_i = P + r·u_i + L1·h_i；代码里 U_OFFSET 已包含这两项
 """
 
 import numpy as np
 from pathlib import Path
 
 # ==========================================
-# 1. 几何参数与物理约束（与 pose_viewer.py 一致，单位 mm）
+# 1. 几何参数与物理约束（单位 mm）
 # ==========================================
 R = 139.0  # 静平台半径（固定铰点 C_i 分布圆）
-r = 39.0  # 动平台半径（动铰点 A_i 分布圆）
+r = 39.0  # 动平台球铰安装点所在圆半径（球心还要再沿 h_i 外移 BALL_L1）
 L = 140.0  # 主动臂长度
 l = 200.0  # 从动臂长度
 H = 0.0  # 静平台高度（Z = 0 平面）
@@ -29,14 +32,13 @@ MIN_THETA = -np.pi / 2.0  # 主动臂最低 -90°
 # ---- 关节配置：平行四边形从动臂（每腿 2 杆）----
 # 臂端关节类型："ball" = 球头铰链（锥角约束）；"ujoint" = 十字万向节（双轴摆角约束）
 ARM_JOINT = "ujoint"
-# 球铰允许的锥角：从动臂相对球窝轴的最大偏摆角（ARM_JOINT="ball" 时生效）
+# 臂端球铰允许的锥角（ARM_JOINT="ball" 时生效）
 MAX_BALL_CONE = np.deg2rad(40.0)
+# 平台端球铰 SQZ6-RS：样本 a° = 15°，即单侧半锥角 15°，总摆角 30°
+PLAT_CONE = np.deg2rad(15.0)
 # 万向节单方向摆角上限（ARM_JOINT="ujoint" 时生效）；面内/面外相互独立
 UJ_ALPHA_MAX = np.deg2rad(160.0)
 UJ_BETA_MAX = np.deg2rad(160.0)
-# 球窝轴的安装偏置角：按"主动臂下垂"位姿的从动臂方向确定，
-# 使锥角围绕行程中心对称展开（= asin((R-r)/l)，本例为 30°）
-MOUNT_ANGLE = np.arcsin(np.clip((R - r) / l, -1.0, 1.0))
 # 平行四边形叉口间距 d（两根杆中心距，需 > ROD_DIAMETER）
 FORK_WIDTH = 30.0
 ROD_DIAMETER = 15.0  # 连杆直径，用于干涉判定
@@ -46,13 +48,22 @@ PHI = np.array([0.0, 2.0 * np.pi / 3.0, 4.0 * np.pi / 3.0])
 UX, UY = np.cos(PHI), np.sin(PHI)
 U_DIR = np.stack([UX, UY, np.zeros(3)], axis=-1)  # (3,3) 径向
 T_DIR = np.stack([-UY, UX, np.zeros(3)], axis=-1)  # (3,3) 切向，叉口间距沿此方向
-U_OFFSET = r * U_DIR  # 动平台铰点相对中心偏移 (3,3)
 
 # 平台端球窝轴：安装面与动平台平面成 135°，球窝轴垂直于安装面，
 # 因此相对竖直方向向外倾斜 135°-90° = 45°
 SOCKET_TILT = np.deg2rad(45.0)
 BALL_SOCKET = np.sin(SOCKET_TILT) * U_DIR + np.cos(SOCKET_TILT) * np.array(
     [0.0, 0.0, 1.0]
+)
+# SQZ6-RS 球心相对底部安装点的偏移长度：球心 = 安装点 + L1·h_i
+BALL_L1 = 28.0
+# 动平台球心相对动平台中心的固定偏移：A_i = P + U_OFFSET_i
+U_OFFSET = r * U_DIR + BALL_L1 * BALL_SOCKET
+
+# 臂端球窝安装角：按"主动臂下垂"位姿的从动臂方向居中
+# 加入 L1 后径向差为 R-r-L1*sin(δs)，本例 asin(80.2/200)=23.6°（旧版无 L1 时为 30°）
+MOUNT_ANGLE = np.arcsin(
+    np.clip((R - r - BALL_L1 * np.sin(SOCKET_TILT)) / l, -1.0, 1.0)
 )
 
 # 6 根从动臂的编号：0/1/2 = 腿 0/1/2 的第一根，3/4/5 = 腿 0/1/2 的第二根
@@ -63,24 +74,24 @@ ROD_PAIRS = [(i, j) for i in range(6) for j in range(i + 1, 6)]
 # 1b. 方案预设（本脚本与 compare_schemes.py 共用，保证参数同源）
 # ==========================================
 '''默认方案为    "uj160": dict(
-        label="万向节 160° + 球铰 40°", joint="ujoint", cone=40.0, alpha=160.0,
+        label="万向节 160° + 球铰 15°", joint="ujoint", cone=40.0, alpha=160.0,
         color="#16A085",
     ),
 '''
 
 SCHEMES = {
-    # "ball40": dict(
-    #     label="全球铰 40°", joint="ball", cone=40.0, alpha=None, color="#8E44AD"
-    # ),
-    # "ball45": dict(
-    #     label="全球铰 45°", joint="ball", cone=45.0, alpha=None, color="#2E86DE"
-    # ),
-    # "uj110": dict(
-    #     label="万向节 110° + 球铰 45°", joint="ujoint", cone=45.0, alpha=110.0,
-    #     color="#E67E22",
-    # ),
+    "ball40": dict(
+        label="臂端球铰 40° + 平台球铰 15°", joint="ball", cone=40.0, alpha=None, color="#8E44AD"
+    ),
+    "ball45": dict(
+        label="臂端球铰 45° + 平台球铰 15°", joint="ball", cone=45.0, alpha=None, color="#2E86DE"
+    ),
+    "uj110": dict(
+        label="万向节 110° + 球铰 15°", joint="ujoint", cone=45.0, alpha=110.0,
+        color="#E67E22",
+    ),
     "uj160": dict(
-        label="万向节 160° + 球铰 40°", joint="ujoint", cone=40.0, alpha=160.0,
+        label="万向节 160° + 球铰 15°", joint="ujoint", cone=40.0, alpha=160.0,
         color="#16A085",
     ),
 }
@@ -105,9 +116,9 @@ def apply_scheme(key):
 # 2. 正运动学
 # ==========================================
 def _leg_geometry(thetas):
-    """由关节角求 B_i（主动臂末端）与等效球心 E_i = B_i - r·u_i
+    """由关节角求 B_i（主动臂末端）与等效球心 E_i = B_i - U_OFFSET_i
 
-    A_i = P + r·u_i，|A_i - B_i| = l  <=>  |P - E_i| = l
+    A_i = P + r·u_i + L1·h_i，|A_i - B_i| = l  <=>  |P - E_i| = l
     于是正解等价于三个半径 l、球心 E_i 的球面求交。
     """
     c, s = np.cos(thetas), np.sin(thetas)
@@ -241,7 +252,7 @@ def constraint_masks(thetas, P, B):
 
     关节配置：平行四边形从动臂，每腿两根平行杆。
       臂端：球头铰链（锥角）或十字万向节（双轴摆角），由 ARM_JOINT 选择
-      平台端：球头铰链，从动臂方向 -b_i 与球窝轴 h_i 的夹角 ≤ MAX_BALL_CONE
+      平台端：球头铰链，从动臂方向 -b_i 与球窝轴 h_i 的夹角 ≤ PLAT_CONE（SQZ6-RS 15°）
 
     平行四边形保证两杆始终平行、两叉口也平行，两根杆相对各自支座的摆角完全相同，
     故关节约束按一根杆判定即可；两根杆只影响承载分配。
@@ -256,7 +267,7 @@ def constraint_masks(thetas, P, B):
 
     # 平台端球铰：球窝轴固定在动平台上，参考方向取 A → B
     m_plat = np.all(
-        np.sum(-b_hat * BALL_SOCKET, axis=-1) >= np.cos(MAX_BALL_CONE), axis=-1
+        np.sum(-b_hat * BALL_SOCKET, axis=-1) >= np.cos(PLAT_CONE), axis=-1
     )
 
     # 6 根从动臂（每腿两根，沿切向错开 FORK_WIDTH）两两干涉
@@ -330,16 +341,26 @@ def build_workspace(n=61, chunk=200_000):
 # ==========================================
 def inverse_kinematics_leg(p, i, branch):
     phi = PHI[i]
-    a = p[0] * np.cos(phi) + p[1] * np.sin(phi) + r - R
-    b = -p[0] * np.sin(phi) + p[1] * np.cos(phi)
-    rho = np.hypot(a, p[2])
+    off = U_OFFSET[i]
+    # 球心 A = P + U_OFFSET，故等效径向/竖直分量都要加上 off 的投影
+    ap = (
+        p[0] * np.cos(phi) + p[1] * np.sin(phi)
+        + off[0] * np.cos(phi) + off[1] * np.sin(phi)
+        - R
+    )
+    b = (
+        -p[0] * np.sin(phi) + p[1] * np.cos(phi)
+        - off[0] * np.sin(phi) + off[1] * np.cos(phi)
+    )
+    ze = p[2] + off[2]
+    rho = np.hypot(ap, ze)
     if rho < 1e-9:
         return np.nan
-    d = (a * a + b * b + p[2] ** 2 + L * L - l * l) / (2.0 * L)
+    d = (ap * ap + b * b + ze * ze + L * L - l * l) / (2.0 * L)
     ratio = d / rho
     if abs(ratio) > 1:
         return np.nan
-    return np.arctan2(p[2], a) + branch * np.arccos(ratio)
+    return np.arctan2(ze, ap) + branch * np.arccos(ratio)
 
 
 def verify_roundtrip(thetas, P, n_sample=2000, seed=0):
@@ -404,13 +425,14 @@ def report(thetas, P):
     )
     print(
         "关节：主动臂 θ ∈ [%.0f°, %+.0f°]；臂端 %s；平台端球铰 ≤ %.0f°；"
-        "球窝安装偏置 %.0f°；叉口间距 %.0f，杆径 %.0f"
+        "球窝安装偏置 %.0f°；球心偏移 L1=%.0f；叉口间距 %.0f，杆径 %.0f"
         % (
             np.degrees(MIN_THETA),
             np.degrees(MAX_THETA),
             joint_desc,
-            np.degrees(MAX_BALL_CONE),
+            np.degrees(PLAT_CONE),
             np.degrees(MOUNT_ANGLE),
+            BALL_L1,
             FORK_WIDTH,
             ROD_DIAMETER,
         )
@@ -485,7 +507,8 @@ def report(thetas, P):
             print("  %-12s    无解" % name)
             continue
         _, vl = _leg_vectors(th_arr, P_fk, B_fk)
-        b_hat = vl[0] / l
+        b_hat_all = vl / l
+        b_hat = b_hat_all[0]
         plat_cone = np.degrees(
             np.arccos(np.clip(np.sum(-b_hat * BALL_SOCKET[0]), -1, 1))
         )
@@ -495,15 +518,15 @@ def report(thetas, P):
             print("  %-12s %8.1f %10.1f %11.1f" % (name, P_fk[2], arm_cone, plat_cone))
         # 十字关节
         else:
-            br, bt, bz = _local_components(b_hat)
+            br, bt, bz = _local_components(b_hat_all)
             alpha = np.degrees(
-                np.abs(np.remainder(np.arctan2(bz, br) - th + np.pi, 2 * np.pi) - np.pi)
+                np.abs(np.remainder(np.arctan2(bz, br) - th_arr + np.pi, 2 * np.pi) - np.pi)
             )
             beta = np.degrees(np.abs(np.arctan2(bt, np.hypot(br, bz))))
-            # print(
-            #     "  %-12s %8.1f %10.1f %10.1f %11.1f"
-            #     % (name, P_fk[2], alpha, beta, plat_cone)
-            # )
+            print(
+                "  %-12s %8.1f %10.1f %10.1f %11.1f"
+                % (name, P_fk[2], float(np.max(alpha)), float(np.max(beta)), plat_cone)
+            )
 
 
 def plot(thetas, P):
