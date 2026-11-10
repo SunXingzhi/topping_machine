@@ -1,0 +1,10 @@
+This package contains a URDF/RViz model derived from:
+
+  AntonSHBK/delta_robot_ros2
+  https://github.com/AntonSHBK/delta_robot_ros2
+  Copyright (c) 2024 Anton Pisarenko
+  MIT License
+
+The model has been modified for the topping_machine Delta geometry:
+R=0.139 m, r=0.039 m, L=0.140 m, l=0.200 m.
+The original MIT license text is included in LICENSE.

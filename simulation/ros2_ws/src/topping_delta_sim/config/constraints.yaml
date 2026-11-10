@@ -1,0 +1,6 @@
+# 约束流水线模式：off / shadow / enforce
+# shadow 只观测不阻断，方便先看数据再收紧。
+mode: shadow
+
+c0_reachability:
+  enabled: true

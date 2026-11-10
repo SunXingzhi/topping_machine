@@ -1,0 +1,13 @@
+# 相机安装外参：base_link（Delta 基座系 G）→ camera_link（Astra Pro 机身系）。
+# 驱动内部会继续发布 camera_link → camera_*_frame → *_optical_frame。
+#
+# TODO(D15/K1)：当前为占位初值（俯角 45°、安装高度 0.75 m 假设）。
+# 静平台安装高度冻结后按设计值更新；K1 外参标定完成后以
+# calibration/astra_pro/extrinsics/ 档案值覆盖本文件。
+camera_mount:
+  x: 0.0        # m，沿推行方向偏移
+  y: 0.0        # m，横向偏移
+  z: 0.75       # m，相机相对静平台高度（占位）
+  roll: 0.0     # rad
+  pitch: 0.7854   # rad，俯角 45°：绕 +Y 正向旋转使光轴朝前下方（+pitch 向下，符号勿改反）
+  yaw: 0.0      # rad

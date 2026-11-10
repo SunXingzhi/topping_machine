@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>topping_perception</name>
+  <version>0.1.0</version>
+  <description>烟草智能打顶机器人上位机感知包：Astra Pro 驱动启动封装、相机外参 TF、后续感知节点。</description>
+  <maintainer email="todo@example.com">topping</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>astra_camera</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
